@@ -1,5 +1,5 @@
 """
-3D Sci-Fi Human Renderer supporting 6 display modes and cyan/blue aesthetic.
+3D Sci-Fi Human Renderer supporting 6 high-detail display modes and cyan/blue aesthetic.
 """
 
 import numpy as np
@@ -12,7 +12,9 @@ from app.settings import (
     MODE_SKIN, MODE_TRANSPARENT_SKIN, MODE_SKELETON,
     MODE_MUSCLES, MODE_XRAY, MODE_JOINT_DEBUG
 )
-from models.body_generator import draw_sphere, draw_cylinder, draw_ellipsoid
+from models.body_generator import (
+    draw_sphere, draw_cylinder, draw_ellipsoid, draw_ribcage, draw_vertebrae
+)
 
 class Renderer:
     def __init__(self, scene):
@@ -35,7 +37,7 @@ class Renderer:
         glEnable(GL_LINE_SMOOTH)
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
 
-        # Lighting setup
+        # Sci-Fi Medical Lighting setup
         glEnable(GL_LIGHTING)
         glEnable(GL_LIGHT0)
         glEnable(GL_COLOR_MATERIAL)
@@ -45,12 +47,12 @@ class Renderer:
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
 
-        # Camera setup
+        # Camera position
         eye = self.scene.camera.get_eye_position()
         target = self.scene.camera.target
         gluLookAt(eye[0], eye[1], eye[2], target[0], target[1], target[2], 0, 1, 0)
 
-        # Set Key & Fill light
+        # Set Key & Fill lights
         glLightfv(GL_LIGHT0, GL_POSITION, [*self.scene.lighting.key_light_dir, 0.0])
         glLightfv(GL_LIGHT0, GL_DIFFUSE, [*self.scene.lighting.key_light_color, 1.0])
         glLightfv(GL_LIGHT0, GL_AMBIENT, [*self.scene.lighting.ambient_color, 1.0])
@@ -76,7 +78,7 @@ class Renderer:
         elif mode == MODE_XRAY:
             self.draw_bones(skel)
             self.draw_muscles(skel)
-            self.draw_skin(skel, alpha=0.25)
+            self.draw_skin(skel, alpha=0.22)
             self.draw_joints(skel)
         elif mode == MODE_JOINT_DEBUG:
             self.draw_bones(skel)
@@ -103,8 +105,28 @@ class Renderer:
 
     def draw_bones(self, skel):
         glColor4f(*COLOR_BONES)
+        # Structural skeletal bones
         for bone in skel.bones:
             draw_cylinder(bone.start_pos, bone.end_pos, radius=0.025)
+
+        # Skull bone structure
+        head_pos = skel.joints["Head"].world_position
+        glPushMatrix()
+        glTranslatef(head_pos[0], head_pos[1] + 0.06, head_pos[2])
+        glScalef(0.10, 0.12, 0.11)
+        draw_sphere(radius=1.0)
+        glPopMatrix()
+
+        # Vertebral Column & Ribcage
+        pelvis_pos = skel.joints["Pelvis"].world_position
+        chest_pos = skel.joints["Chest"].world_position
+        draw_vertebrae(pelvis_pos, chest_pos, count=12)
+
+        glDisable(GL_LIGHTING)
+        glColor4f(0.8, 0.95, 1.0, 0.85)
+        glLineWidth(1.5)
+        draw_ribcage(chest_pos, num_ribs=10, width=0.20, height=0.28, depth=0.16)
+        glEnable(GL_LIGHTING)
 
     def draw_joints(self, skel, debug_axes=False):
         for joint in skel.joints.values():
@@ -113,7 +135,7 @@ class Renderer:
 
             # Glowing orange joint marker
             glColor4f(*COLOR_JOINTS)
-            draw_sphere(radius=0.04)
+            draw_sphere(radius=0.038)
 
             if debug_axes:
                 glDisable(GL_LIGHTING)
@@ -138,52 +160,73 @@ class Renderer:
 
     def draw_muscles(self, skel):
         glColor4f(*COLOR_MUSCLES)
-        # Main muscle groups attached to bones/joints
-        # Torso / Pectorals / Abdomen
+
+        # Pectorals & Abdominals
         chest_pos = skel.joints["Chest"].world_position
         spine_pos = skel.joints["Spine"].world_position
-        draw_ellipsoid(chest_pos, 0.22, 0.16, 0.14)
-        draw_ellipsoid(spine_pos, 0.18, 0.14, 0.12)
+        pelvis_pos = skel.joints["Pelvis"].world_position
 
-        # Biceps / Triceps
+        draw_ellipsoid(chest_pos, 0.22, 0.15, 0.14)
+        draw_ellipsoid(spine_pos, 0.18, 0.14, 0.12)
+        draw_ellipsoid(pelvis_pos, 0.19, 0.12, 0.13)
+
+        # Shoulder Deltoids & Arm Biceps/Triceps
         for side in ["Left", "Right"]:
+            clav_pos = skel.joints[f"{side}_Clavicle"].world_position
             arm_start = skel.joints[f"{side}_UpperArm"].world_position
             arm_end = skel.joints[f"{side}_Forearm"].world_position
+            hand_pos = skel.joints[f"{side}_Hand"].world_position
+
+            # Deltoid muscle
+            draw_ellipsoid(arm_start, 0.08, 0.08, 0.08)
+
+            # Biceps / Triceps along upper arm vector
             mid_arm = (arm_start + arm_end) * 0.5
-            draw_ellipsoid(mid_arm, 0.06, 0.12, 0.06)
+            draw_cylinder(arm_start, arm_end, radius=0.055)
+            draw_ellipsoid(mid_arm, 0.07, 0.11, 0.07)
 
-            forearm_start = skel.joints[f"{side}_Forearm"].world_position
-            forearm_end = skel.joints[f"{side}_Hand"].world_position
-            mid_forearm = (forearm_start + forearm_end) * 0.5
-            draw_ellipsoid(mid_forearm, 0.05, 0.10, 0.05)
+            # Forearm muscles
+            mid_forearm = (arm_end + hand_pos) * 0.5
+            draw_cylinder(arm_end, hand_pos, radius=0.045)
+            draw_ellipsoid(mid_forearm, 0.05, 0.09, 0.05)
 
-            # Quadriceps / Calves
+            # Glutes & Thigh Quadriceps
             hip_pos = skel.joints[f"{side}_UpperLeg"].world_position
             knee_pos = skel.joints[f"{side}_LowerLeg"].world_position
-            mid_thigh = (hip_pos + knee_pos) * 0.5
-            draw_ellipsoid(mid_thigh, 0.10, 0.18, 0.10)
+            foot_pos = skel.joints[f"{side}_Foot"].world_position
 
-            ankle_pos = skel.joints[f"{side}_Foot"].world_position
-            mid_calf = (knee_pos + ankle_pos) * 0.5
-            draw_ellipsoid(mid_calf, 0.08, 0.16, 0.08)
+            # Gluteus
+            draw_ellipsoid(hip_pos, 0.12, 0.12, 0.12)
+
+            # Quadriceps
+            mid_thigh = (hip_pos + knee_pos) * 0.5
+            draw_cylinder(hip_pos, knee_pos, radius=0.08)
+            draw_ellipsoid(mid_thigh, 0.11, 0.16, 0.11)
+
+            # Calves (Gastrocnemius)
+            mid_calf = (knee_pos + foot_pos) * 0.5
+            draw_cylinder(knee_pos, foot_pos, radius=0.065)
+            draw_ellipsoid(mid_calf, 0.085, 0.14, 0.085)
 
     def draw_skin(self, skel, alpha=0.85):
         color = (COLOR_SKIN[0], COLOR_SKIN[1], COLOR_SKIN[2], alpha)
         glColor4f(*color)
 
-        # Head / Neck
+        # Anatomical Head / Neck surface
         head_pos = skel.joints["Head"].world_position
-        draw_ellipsoid(head_pos + np.array([0, 0.08, 0]), 0.11, 0.14, 0.12)
+        neck_pos = skel.joints["Neck"].world_position
+        draw_ellipsoid(head_pos + np.array([0, 0.07, 0]), 0.115, 0.145, 0.125)
+        draw_cylinder(neck_pos, head_pos, radius=0.065)
 
-        # Upper Torso & Pelvis
+        # Upper Torso & Pelvis skin
         pelvis_pos = skel.joints["Pelvis"].world_position
         chest_pos = skel.joints["Chest"].world_position
         spine_pos = skel.joints["Spine"].world_position
 
-        draw_ellipsoid(chest_pos, 0.24, 0.18, 0.16)
-        draw_ellipsoid(spine_pos, 0.20, 0.16, 0.14)
-        draw_ellipsoid(pelvis_pos, 0.21, 0.14, 0.15)
+        draw_ellipsoid(chest_pos, 0.245, 0.185, 0.165)
+        draw_ellipsoid(spine_pos, 0.205, 0.165, 0.145)
+        draw_ellipsoid(pelvis_pos, 0.215, 0.145, 0.155)
 
-        # Limbs connection cylinders
+        # Limb contours connecting skeleton joints
         for bone in skel.bones:
-            draw_cylinder(bone.start_pos, bone.end_pos, radius=0.065)
+            draw_cylinder(bone.start_pos, bone.end_pos, radius=0.068)
