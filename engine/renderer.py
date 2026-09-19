@@ -1,5 +1,6 @@
 """
-3D Sci-Fi Human Renderer supporting 7 high-detail display modes for Golbem Simulator.
+3D Sci-Fi Medical Renderer supporting Shaders, PBR-lite Materials, GLTF/OBJ assets,
+and 7 Display Modes for Golbem Simulator.
 """
 
 import numpy as np
@@ -12,6 +13,7 @@ from app.settings import (
     MODE_SKIN, MODE_TRANSPARENT_SKIN, MODE_SKELETON,
     MODE_MUSCLES, MODE_XRAY, MODE_ORGANS, MODE_JOINT_DEBUG
 )
+from engine.shader import ShaderManager
 from models.body_generator import (
     draw_sphere, draw_cylinder, draw_ellipsoid, draw_ribcage, draw_vertebrae,
     draw_heart, draw_lungs, draw_liver, draw_stomach, draw_kidneys
@@ -20,6 +22,7 @@ from models.body_generator import (
 class Renderer:
     def __init__(self, scene):
         self.scene = scene
+        self.shader_manager = ShaderManager()
 
     def setup_gl(self, width: int, height: int):
         glViewport(0, 0, width, height)
@@ -38,11 +41,15 @@ class Renderer:
         glEnable(GL_LINE_SMOOTH)
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
 
-        # Sci-Fi Medical Lighting setup
-        glEnable(GL_LIGHTING)
-        glEnable(GL_LIGHT0)
-        glEnable(GL_COLOR_MATERIAL)
-        glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
+        # Attempt compiling GLSL Shader Manager
+        self.shader_manager.compile_shaders()
+
+        if not self.shader_manager.is_compiled:
+            # Fixed-function lighting fallback
+            glEnable(GL_LIGHTING)
+            glEnable(GL_LIGHT0)
+            glEnable(GL_COLOR_MATERIAL)
+            glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
 
     def render(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -53,15 +60,32 @@ class Renderer:
         target = self.scene.camera.target
         gluLookAt(eye[0], eye[1], eye[2], target[0], target[1], target[2], 0, 1, 0)
 
-        # Set Key & Fill lights
-        glLightfv(GL_LIGHT0, GL_POSITION, [*self.scene.lighting.key_light_dir, 0.0])
-        glLightfv(GL_LIGHT0, GL_DIFFUSE, [*self.scene.lighting.key_light_color, 1.0])
-        glLightfv(GL_LIGHT0, GL_AMBIENT, [*self.scene.lighting.ambient_color, 1.0])
+        # Update shader lighting uniforms
+        if self.shader_manager.is_compiled:
+            self.shader_manager.use()
+            self.shader_manager.set_lighting(
+                key_dir=self.scene.lighting.key_light_dir,
+                key_color=self.scene.lighting.key_light_color,
+                fill_color=self.scene.lighting.fill_light_color,
+                rim_color=(0.0, 0.9, 1.0)
+            )
+        else:
+            glLightfv(GL_LIGHT0, GL_POSITION, [*self.scene.lighting.key_light_dir, 0.0])
+            glLightfv(GL_LIGHT0, GL_DIFFUSE, [*self.scene.lighting.key_light_color, 1.0])
+            glLightfv(GL_LIGHT0, GL_AMBIENT, [*self.scene.lighting.ambient_color, 1.0])
 
         if self.scene.show_grid:
             self.draw_grid()
 
-        # Render Human Body according to current display mode
+        # Render imported custom GLB/OBJ model if active
+        if self.scene.asset_pipeline.is_custom_model_loaded:
+            self.shader_manager.set_material_color(*COLOR_SKIN)
+            self.scene.asset_pipeline.render_loaded_model(self.scene.skeleton)
+            if self.shader_manager.is_compiled:
+                self.shader_manager.unbind()
+            return
+
+        # Otherwise render procedural anatomical human model
         mode = self.scene.display_mode
         skel = self.scene.skeleton
 
@@ -72,10 +96,10 @@ class Renderer:
             self.draw_muscles(skel)
             self.draw_bones(skel)
         elif mode == MODE_SKIN:
-            self.draw_skin(skel, alpha=0.9)
+            self.draw_skin(skel, alpha=0.92)
         elif mode == MODE_TRANSPARENT_SKIN:
             self.draw_bones(skel)
-            self.draw_skin(skel, alpha=0.3)
+            self.draw_skin(skel, alpha=0.30)
         elif mode == MODE_XRAY:
             self.draw_bones(skel)
             self.draw_muscles(skel)
@@ -90,7 +114,12 @@ class Renderer:
             self.draw_bones(skel)
             self.draw_joints(skel, debug_axes=True)
 
+        if self.shader_manager.is_compiled:
+            self.shader_manager.unbind()
+
     def draw_grid(self):
+        if self.shader_manager.is_compiled:
+            self.shader_manager.unbind()
         glDisable(GL_LIGHTING)
         glColor4f(*COLOR_GRID)
         glLineWidth(1.0)
@@ -107,14 +136,20 @@ class Renderer:
             glVertex3f(-grid_size * spacing, 0.0, coord)
             glVertex3f(grid_size * spacing, 0.0, coord)
         glEnd()
-        glEnable(GL_LIGHTING)
+
+        if not self.shader_manager.is_compiled:
+            glEnable(GL_LIGHTING)
+        else:
+            self.shader_manager.use()
 
     def draw_bones(self, skel):
-        glColor4f(*COLOR_BONES)
-        for bone in skel.bones:
-            draw_cylinder(bone.start_pos, bone.end_pos, radius=0.025)
+        self.shader_manager.set_material_color(*COLOR_BONES)
+        self.shader_manager.set_pbr_params(fresnel_power=3.0, specular_shininess=48.0, alpha=0.95)
 
-        # Skull bone structure
+        for bone in skel.bones:
+            draw_cylinder(bone.start_pos, bone.end_pos, radius=0.026)
+
+        # Anatomical Skull
         head_pos = skel.joints["Head"].world_position
         glPushMatrix()
         glTranslatef(head_pos[0], head_pos[1] + 0.06, head_pos[2])
@@ -125,52 +160,59 @@ class Renderer:
         # Vertebral Column & Ribcage
         pelvis_pos = skel.joints["Pelvis"].world_position
         chest_pos = skel.joints["Chest"].world_position
-        draw_vertebrae(pelvis_pos, chest_pos, count=12)
+        draw_vertebrae(pelvis_pos, chest_pos, count=14)
 
+        if self.shader_manager.is_compiled:
+            self.shader_manager.unbind()
         glDisable(GL_LIGHTING)
-        glColor4f(0.8, 0.95, 1.0, 0.85)
+        glColor4f(0.82, 0.95, 1.0, 0.88)
         glLineWidth(1.5)
         draw_ribcage(chest_pos, num_ribs=10, width=0.20, height=0.28, depth=0.16)
-        glEnable(GL_LIGHTING)
+
+        if not self.shader_manager.is_compiled:
+            glEnable(GL_LIGHTING)
+        else:
+            self.shader_manager.use()
 
     def draw_joints(self, skel, debug_axes=False):
         for joint in skel.joints.values():
             glPushMatrix()
             glTranslatef(*joint.world_position)
 
-            # Glowing orange joint marker
             if self.scene.selected_item_name == joint.name:
-                glColor4f(*COLOR_HIGHLIGHT)
+                self.shader_manager.set_material_color(*COLOR_HIGHLIGHT)
                 draw_sphere(radius=0.055)
             else:
-                glColor4f(*COLOR_JOINTS)
+                self.shader_manager.set_material_color(*COLOR_JOINTS)
                 draw_sphere(radius=0.038)
 
             if debug_axes:
+                if self.shader_manager.is_compiled:
+                    self.shader_manager.unbind()
                 glDisable(GL_LIGHTING)
                 glLineWidth(2.0)
                 glBegin(GL_LINES)
-                # X axis - Red
-                glColor3f(1.0, 0.0, 0.0)
+                glColor3f(1.0, 0.0, 0.0) # X axis
                 glVertex3f(0, 0, 0)
                 glVertex3f(0.12, 0, 0)
-                # Y axis - Green
-                glColor3f(0.0, 1.0, 0.0)
+                glColor3f(0.0, 1.0, 0.0) # Y axis
                 glVertex3f(0, 0, 0)
                 glVertex3f(0, 0.12, 0)
-                # Z axis - Blue
-                glColor3f(0.0, 0.5, 1.0)
+                glColor3f(0.0, 0.5, 1.0) # Z axis
                 glVertex3f(0, 0, 0)
                 glVertex3f(0, 0, 0.12)
                 glEnd()
-                glEnable(GL_LIGHTING)
+                if not self.shader_manager.is_compiled:
+                    glEnable(GL_LIGHTING)
+                else:
+                    self.shader_manager.use()
 
             glPopMatrix()
 
     def draw_muscles(self, skel):
-        glColor4f(*COLOR_MUSCLES)
+        self.shader_manager.set_material_color(*COLOR_MUSCLES)
+        self.shader_manager.set_pbr_params(fresnel_power=2.0, specular_shininess=24.0, alpha=0.82)
 
-        # Pectorals & Abdominals
         chest_pos = skel.joints["Chest"].world_position
         spine_pos = skel.joints["Spine"].world_position
         pelvis_pos = skel.joints["Pelvis"].world_position
@@ -179,7 +221,6 @@ class Renderer:
         draw_ellipsoid(spine_pos, 0.18, 0.14, 0.12)
         draw_ellipsoid(pelvis_pos, 0.19, 0.12, 0.13)
 
-        # Shoulder Deltoids & Arm Biceps/Triceps
         for side in ["Left", "Right"]:
             arm_start = skel.joints[f"{side}_UpperArm"].world_position
             arm_end = skel.joints[f"{side}_Forearm"].world_position
@@ -208,10 +249,11 @@ class Renderer:
             draw_ellipsoid(mid_calf, 0.085, 0.14, 0.085)
 
     def draw_organs(self, skel):
-        """Renders 3D Internal Organs attached to thoracic and abdominal spine/chest."""
+        """Renders 3D Internal Organs with distinct shader material highlights."""
         chest_pos = skel.joints["Chest"].world_position
         spine_pos = skel.joints["Spine"].world_position
 
+        self.shader_manager.set_pbr_params(fresnel_power=1.8, specular_shininess=36.0, alpha=0.95)
         draw_heart(chest_pos)
         draw_lungs(chest_pos)
         draw_liver(spine_pos)
@@ -220,7 +262,8 @@ class Renderer:
 
     def draw_skin(self, skel, alpha=0.85):
         color = (COLOR_SKIN[0], COLOR_SKIN[1], COLOR_SKIN[2], alpha)
-        glColor4f(*color)
+        self.shader_manager.set_material_color(*color)
+        self.shader_manager.set_pbr_params(fresnel_power=2.2, specular_shininess=32.0, alpha=alpha)
 
         head_pos = skel.joints["Head"].world_position
         neck_pos = skel.joints["Neck"].world_position
