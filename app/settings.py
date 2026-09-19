@@ -1,17 +1,17 @@
 """
-Global application settings and constants.
+Global settings and constants for Golbem Simulator.
 """
 
 import os
 
 # Application Metadata
-APP_NAME = "Offline AI Human Motion Simulator"
-APP_VERSION = "1.0.0"
-ORGANIZATION_NAME = "BioMotion Dynamics"
+APP_NAME = "Golbem Human Anatomy & Motion Simulator"
+APP_VERSION = "2.0.0"
+ORGANIZATION_NAME = "Golbem BioDynamics"
 
 # Display Settings
-DEFAULT_WINDOW_WIDTH = 1280
-DEFAULT_WINDOW_HEIGHT = 800
+DEFAULT_WINDOW_WIDTH = 1360
+DEFAULT_WINDOW_HEIGHT = 850
 TARGET_FPS = 60
 
 # Colors (RGBA) - Sci-Fi Cyberpunk Dark Theme
@@ -25,12 +25,13 @@ COLOR_JOINTS = (1.0, 0.55, 0.0, 1.0)           # High-visibility glowing orange 
 COLOR_HIGHLIGHT = (0.0, 0.9, 1.0, 1.0)         # Bright cyan highlight
 
 # Rendering Display Modes
-MODE_SKIN = "Skin Mode"
-MODE_TRANSPARENT_SKIN = "Transparent Skin Mode"
-MODE_SKELETON = "Skeleton Mode"
-MODE_MUSCLES = "Muscles Mode"
-MODE_XRAY = "X-Ray Mode"
-MODE_JOINT_DEBUG = "Joint Debug Mode"
+MODE_SKIN = "Skin View"
+MODE_TRANSPARENT_SKIN = "Transparent Skin View"
+MODE_SKELETON = "Skeleton View"
+MODE_MUSCLES = "Muscle View"
+MODE_XRAY = "X-Ray View"
+MODE_ORGANS = "Internal Anatomy View"
+MODE_JOINT_DEBUG = "Joint Debug View"
 
 DISPLAY_MODES = [
     MODE_SKIN,
@@ -38,6 +39,7 @@ DISPLAY_MODES = [
     MODE_SKELETON,
     MODE_MUSCLES,
     MODE_XRAY,
+    MODE_ORGANS,
     MODE_JOINT_DEBUG,
 ]
 

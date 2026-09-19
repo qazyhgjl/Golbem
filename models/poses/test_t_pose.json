@@ -1,0 +1,67 @@
+{
+    "Pelvis": [
+        0,
+        0,
+        0
+    ],
+    "Spine": [
+        0,
+        0,
+        0
+    ],
+    "Chest": [
+        0,
+        0,
+        0
+    ],
+    "Neck": [
+        0,
+        0,
+        0
+    ],
+    "Head": [
+        0,
+        0,
+        0
+    ],
+    "Left_UpperArm": [
+        0,
+        0,
+        -90
+    ],
+    "Left_Forearm": [
+        0,
+        0,
+        0
+    ],
+    "Right_UpperArm": [
+        0,
+        0,
+        90
+    ],
+    "Right_Forearm": [
+        0,
+        0,
+        0
+    ],
+    "Left_UpperLeg": [
+        0,
+        0,
+        0
+    ],
+    "Left_LowerLeg": [
+        0,
+        0,
+        0
+    ],
+    "Right_UpperLeg": [
+        0,
+        0,
+        0
+    ],
+    "Right_LowerLeg": [
+        0,
+        0,
+        0
+    ]
+}

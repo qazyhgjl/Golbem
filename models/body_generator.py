@@ -1,13 +1,14 @@
 """
-High-Detail Procedural 3D Anatomical Human Mesh Generator.
-Generates vertex, normal, and face data for Skin, Skeletal Bones, and Muscle Groups.
+High-Detail Anatomical Mesh and Internal Organs Generator for Golbem Simulator.
+Generates vertex, normal, and anatomical geometry for Skin, Skeletal Bones, Muscle Groups,
+and Internal Organs (Heart, Lungs, Liver, Kidneys, Stomach).
 """
 
 import numpy as np
 from OpenGL.GL import *
 
 def draw_sphere(radius=1.0, slices=16, stacks=16):
-    """Draws a 3D sphere using OpenGL for joint markers."""
+    """Draws a 3D sphere using OpenGL for joints and spherical organ bases."""
     for i in range(stacks):
         lat0 = np.pi * (-0.5 + float(i) / stacks)
         z0 = radius * np.sin(lat0)
@@ -72,15 +73,15 @@ def draw_cylinder(p1, p2, radius=0.03, slices=16):
     glPopMatrix()
 
 def draw_ellipsoid(center, rx, ry, rz, slices=20, stacks=20):
-    """Draws a 3D ellipsoid for anatomical muscle volumes and skin contours."""
+    """Draws a 3D ellipsoid for anatomical muscle volumes and organ shapes."""
     glPushMatrix()
     glTranslatef(center[0], center[1], center[2])
     glScalef(rx, ry, rz)
     draw_sphere(radius=1.0, slices=slices, stacks=stacks)
     glPopMatrix()
 
-def draw_ribcage(center, num_ribs=10, width=0.22, height=0.32, depth=0.18):
-    """Draws detailed ribcage anatomical ribs."""
+def draw_ribcage(center, num_ribs=10, width=0.20, height=0.28, depth=0.16):
+    """Draws detailed thoracic ribcage ribs."""
     cx, cy, cz = center
     for i in range(num_ribs):
         t = i / float(num_ribs)
@@ -104,10 +105,86 @@ def draw_vertebrae(p_start, p_end, count=12):
     for i in range(count):
         t = i / float(count)
         pos = p_start + (p_end - p_start) * t
-        draw_sphere_at(pos, radius=0.035)
+        glPushMatrix()
+        glTranslatef(pos[0], pos[1], pos[2])
+        draw_sphere(radius=0.035, slices=12, stacks=12)
+        glPopMatrix()
 
-def draw_sphere_at(pos, radius=0.04):
+# --- Internal Organs 3D Geometry ---
+
+def draw_heart(center):
+    """Draws 3D anatomical Heart mesh model inside chest."""
+    cx, cy, cz = center
     glPushMatrix()
-    glTranslatef(pos[0], pos[1], pos[2])
-    draw_sphere(radius=radius, slices=12, stacks=12)
+    glTranslatef(cx - 0.03, cy + 0.02, cz + 0.03) # Left thoracic chest orientation
+    glRotatef(15, 0, 0, 1)
+    glRotatef(-10, 1, 0, 0)
+
+    # Crimson/Dark Red Heart
+    glColor4f(0.85, 0.1, 0.15, 0.95)
+    draw_ellipsoid((0, 0, 0), 0.055, 0.075, 0.055)
+
+    # Aorta & Major Vessels
+    glColor4f(0.9, 0.2, 0.2, 0.95)
+    draw_cylinder((0, 0.04, 0), (0, 0.09, -0.01), radius=0.018)
+    glColor4f(0.2, 0.3, 0.8, 0.95) # Vena Cava (Blue)
+    draw_cylinder((0.02, 0.03, 0.01), (0.02, 0.08, 0.01), radius=0.015)
+    glPopMatrix()
+
+def draw_lungs(center):
+    """Draws 3D anatomical Left and Right Lungs."""
+    cx, cy, cz = center
+    # Pinkish / Coral Lungs
+    glColor4f(0.9, 0.5, 0.55, 0.85)
+
+    # Right Lung (Slightly larger, 3 lobes)
+    glPushMatrix()
+    glTranslatef(cx + 0.08, cy + 0.02, cz + 0.01)
+    draw_ellipsoid((0, 0, 0), 0.065, 0.12, 0.075)
+    glPopMatrix()
+
+    # Left Lung (Cardiac notch)
+    glPushMatrix()
+    glTranslatef(cx - 0.08, cy + 0.02, cz + 0.01)
+    draw_ellipsoid((0, 0, 0), 0.055, 0.115, 0.070)
+    glPopMatrix()
+
+def draw_liver(center):
+    """Draws 3D Liver mesh model inside upper right abdomen."""
+    cx, cy, cz = center
+    glPushMatrix()
+    glTranslatef(cx + 0.05, cy - 0.08, cz + 0.02)
+    glRotatef(-10, 0, 0, 1)
+    # Dark Brownish-Red Liver
+    glColor4f(0.55, 0.18, 0.15, 0.95)
+    draw_ellipsoid((0, 0, 0), 0.095, 0.055, 0.08)
+    glPopMatrix()
+
+def draw_stomach(center):
+    """Draws 3D Stomach mesh model inside upper left abdomen."""
+    cx, cy, cz = center
+    glPushMatrix()
+    glTranslatef(cx - 0.06, cy - 0.09, cz + 0.02)
+    glRotatef(20, 0, 1, 0)
+    # Pinkish-Beige Stomach J-shape
+    glColor4f(0.85, 0.55, 0.5, 0.95)
+    draw_ellipsoid((0, 0, 0), 0.055, 0.075, 0.05)
+    glPopMatrix()
+
+def draw_kidneys(center):
+    """Draws 3D Left and Right Kidneys near posterior abdominal wall."""
+    cx, cy, cz = center
+    # Dark Red-Violet Kidneys
+    glColor4f(0.5, 0.15, 0.25, 0.95)
+
+    # Right Kidney (Slightly lower due to liver)
+    glPushMatrix()
+    glTranslatef(cx + 0.07, cy - 0.14, cz - 0.05)
+    draw_ellipsoid((0, 0, 0), 0.035, 0.05, 0.03)
+    glPopMatrix()
+
+    # Left Kidney
+    glPushMatrix()
+    glTranslatef(cx - 0.07, cy - 0.12, cz - 0.05)
+    draw_ellipsoid((0, 0, 0), 0.035, 0.05, 0.03)
     glPopMatrix()

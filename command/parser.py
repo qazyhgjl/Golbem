@@ -1,15 +1,18 @@
 """
-Persian NLP Command Parser extracting action types, durations, repetitions, and sequence ordering.
+Persian NLP Command Parser extracting action types, durations, repetitions, display modes, anatomy selections, and sequence ordering.
 """
 
 import re
 from command.normalizer import normalize_text, PERSIAN_WORD_NUMBERS
-from command.vocabulary import ACTION_VOCABULARY, CONTROL_VOCABULARY
+from command.vocabulary import (
+    ACTION_VOCABULARY, DISPLAY_MODE_VOCABULARY,
+    ANATOMY_SELECTION_VOCABULARY, CONTROL_VOCABULARY
+)
 from animation.motion_sequence import MotionAction
 
 class CommandParser:
     def parse(self, user_input: str) -> dict:
-        """Parses user Persian string into standard action structure."""
+        """Parses user Persian string into standard action/mode/selection structure."""
         normalized = normalize_text(user_input)
 
         if not normalized:
@@ -21,7 +24,19 @@ class CommandParser:
                 if kw in normalized:
                     return {"status": "control", "control_type": ctrl_type, "actions": []}
 
-        # Split compound commands separated by 'بعد', 'سپس', ',', 'و بعد'
+        # Check display mode change commands
+        for mode_name, keywords in DISPLAY_MODE_VOCABULARY.items():
+            for kw in keywords:
+                if kw in normalized:
+                    return {"status": "mode_change", "mode": mode_name, "actions": []}
+
+        # Check anatomy selection commands
+        for item_name, keywords in ANATOMY_SELECTION_VOCABULARY.items():
+            for kw in keywords:
+                if kw in normalized:
+                    return {"status": "anatomy_select", "item": item_name, "actions": []}
+
+        # Split compound motion commands
         sub_commands = re.split(r'بعد\s*از\s*آن|و\s*بعد|سپس|بعد|،|,', normalized)
 
         actions = []
@@ -78,7 +93,6 @@ class CommandParser:
                 num *= 60
             return float(num)
 
-        # Check for word numbers
         for word, val in PERSIAN_WORD_NUMBERS.items():
             if f"{word} ثانیه" in text:
                 return float(val)

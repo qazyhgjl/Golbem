@@ -1,17 +1,17 @@
 """
-Integration tests for Command Execution Pipeline (Persian Text -> CommandExecutor -> AnimationController -> Skeleton).
+Integration tests for Command Execution Pipeline (Persian Text -> CommandExecutor -> Scene/AnimationController -> Skeleton).
 """
 
 import unittest
-from skeleton.skeleton import Skeleton
+from engine.scene import Scene
 from animation.animation_controller import AnimationController
 from command.executor import CommandExecutor
 
 class TestSequenceIntegration(unittest.TestCase):
     def setUp(self):
-        self.skeleton = Skeleton()
-        self.controller = AnimationController(self.skeleton)
-        self.executor = CommandExecutor(self.controller)
+        self.scene = Scene()
+        self.controller = AnimationController(self.scene.skeleton)
+        self.executor = CommandExecutor(self.scene, self.controller)
 
     def test_end_to_end_command_execution(self):
         res = self.executor.execute_text_command("به مدت ۲۰ ثانیه راه برو و بعد بنشین")

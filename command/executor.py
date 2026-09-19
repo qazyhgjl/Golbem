@@ -1,12 +1,13 @@
 """
-Command Executor linking parsed Persian NLP commands to Animation Controller.
+Command Executor linking parsed Persian NLP commands to Scene, Viewport, and Animation Controller.
 """
 
 from command.parser import CommandParser
 from command.validator import CommandValidator
 
 class CommandExecutor:
-    def __init__(self, animation_controller):
+    def __init__(self, scene, animation_controller):
+        self.scene = scene
         self.animation_controller = animation_controller
         self.parser = CommandParser()
         self.validator = CommandValidator()
@@ -14,6 +15,26 @@ class CommandExecutor:
 
     def execute_text_command(self, user_text: str) -> dict:
         parsed = self.parser.parse(user_text)
+
+        if parsed["status"] == "mode_change":
+            mode_name = parsed["mode"]
+            self.scene.set_display_mode(mode_name)
+            return {
+                "success": True,
+                "message": f"حالت نمایش به '{mode_name}' تغییر یافت.",
+                "type": "mode_change",
+                "mode": mode_name
+            }
+
+        if parsed["status"] == "anatomy_select":
+            item_name = parsed["item"]
+            self.scene.select_item(item_name)
+            return {
+                "success": True,
+                "message": f"بخش '{item_name}' انتخاب شد.",
+                "type": "anatomy_select",
+                "item": item_name
+            }
 
         if parsed["status"] == "control":
             ctrl = parsed["control_type"]
@@ -45,7 +66,7 @@ class CommandExecutor:
         actions_desc = ", ".join([f"{a.action_type} (duration={a.duration}, reps={a.repetitions})" for a in motion_objects])
         return {
             "success": True,
-            "message": f"دستور اجرا شد: {actions_desc}",
+            "message": f"دستور حرکتی اجرا شد: {actions_desc}",
             "type": "motion",
             "actions": parsed["actions"]
         }

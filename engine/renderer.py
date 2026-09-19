@@ -1,5 +1,5 @@
 """
-3D Sci-Fi Human Renderer supporting 6 high-detail display modes and cyan/blue aesthetic.
+3D Sci-Fi Human Renderer supporting 7 high-detail display modes for Golbem Simulator.
 """
 
 import numpy as np
@@ -10,10 +10,11 @@ from app.settings import (
     COLOR_BG_DARK, COLOR_GRID, COLOR_SKIN, COLOR_SKIN_TRANSPARENT,
     COLOR_BONES, COLOR_MUSCLES, COLOR_JOINTS, COLOR_HIGHLIGHT,
     MODE_SKIN, MODE_TRANSPARENT_SKIN, MODE_SKELETON,
-    MODE_MUSCLES, MODE_XRAY, MODE_JOINT_DEBUG
+    MODE_MUSCLES, MODE_XRAY, MODE_ORGANS, MODE_JOINT_DEBUG
 )
 from models.body_generator import (
-    draw_sphere, draw_cylinder, draw_ellipsoid, draw_ribcage, draw_vertebrae
+    draw_sphere, draw_cylinder, draw_ellipsoid, draw_ribcage, draw_vertebrae,
+    draw_heart, draw_lungs, draw_liver, draw_stomach, draw_kidneys
 )
 
 class Renderer:
@@ -78,8 +79,13 @@ class Renderer:
         elif mode == MODE_XRAY:
             self.draw_bones(skel)
             self.draw_muscles(skel)
+            self.draw_organs(skel)
             self.draw_skin(skel, alpha=0.22)
             self.draw_joints(skel)
+        elif mode == MODE_ORGANS:
+            self.draw_bones(skel)
+            self.draw_organs(skel)
+            self.draw_skin(skel, alpha=0.18)
         elif mode == MODE_JOINT_DEBUG:
             self.draw_bones(skel)
             self.draw_joints(skel, debug_axes=True)
@@ -105,7 +111,6 @@ class Renderer:
 
     def draw_bones(self, skel):
         glColor4f(*COLOR_BONES)
-        # Structural skeletal bones
         for bone in skel.bones:
             draw_cylinder(bone.start_pos, bone.end_pos, radius=0.025)
 
@@ -134,8 +139,12 @@ class Renderer:
             glTranslatef(*joint.world_position)
 
             # Glowing orange joint marker
-            glColor4f(*COLOR_JOINTS)
-            draw_sphere(radius=0.038)
+            if self.scene.selected_item_name == joint.name:
+                glColor4f(*COLOR_HIGHLIGHT)
+                draw_sphere(radius=0.055)
+            else:
+                glColor4f(*COLOR_JOINTS)
+                draw_sphere(radius=0.038)
 
             if debug_axes:
                 glDisable(GL_LIGHTING)
@@ -172,53 +181,52 @@ class Renderer:
 
         # Shoulder Deltoids & Arm Biceps/Triceps
         for side in ["Left", "Right"]:
-            clav_pos = skel.joints[f"{side}_Clavicle"].world_position
             arm_start = skel.joints[f"{side}_UpperArm"].world_position
             arm_end = skel.joints[f"{side}_Forearm"].world_position
             hand_pos = skel.joints[f"{side}_Hand"].world_position
 
-            # Deltoid muscle
             draw_ellipsoid(arm_start, 0.08, 0.08, 0.08)
-
-            # Biceps / Triceps along upper arm vector
             mid_arm = (arm_start + arm_end) * 0.5
             draw_cylinder(arm_start, arm_end, radius=0.055)
             draw_ellipsoid(mid_arm, 0.07, 0.11, 0.07)
 
-            # Forearm muscles
             mid_forearm = (arm_end + hand_pos) * 0.5
             draw_cylinder(arm_end, hand_pos, radius=0.045)
             draw_ellipsoid(mid_forearm, 0.05, 0.09, 0.05)
 
-            # Glutes & Thigh Quadriceps
             hip_pos = skel.joints[f"{side}_UpperLeg"].world_position
             knee_pos = skel.joints[f"{side}_LowerLeg"].world_position
             foot_pos = skel.joints[f"{side}_Foot"].world_position
 
-            # Gluteus
             draw_ellipsoid(hip_pos, 0.12, 0.12, 0.12)
-
-            # Quadriceps
             mid_thigh = (hip_pos + knee_pos) * 0.5
             draw_cylinder(hip_pos, knee_pos, radius=0.08)
             draw_ellipsoid(mid_thigh, 0.11, 0.16, 0.11)
 
-            # Calves (Gastrocnemius)
             mid_calf = (knee_pos + foot_pos) * 0.5
             draw_cylinder(knee_pos, foot_pos, radius=0.065)
             draw_ellipsoid(mid_calf, 0.085, 0.14, 0.085)
+
+    def draw_organs(self, skel):
+        """Renders 3D Internal Organs attached to thoracic and abdominal spine/chest."""
+        chest_pos = skel.joints["Chest"].world_position
+        spine_pos = skel.joints["Spine"].world_position
+
+        draw_heart(chest_pos)
+        draw_lungs(chest_pos)
+        draw_liver(spine_pos)
+        draw_stomach(spine_pos)
+        draw_kidneys(spine_pos)
 
     def draw_skin(self, skel, alpha=0.85):
         color = (COLOR_SKIN[0], COLOR_SKIN[1], COLOR_SKIN[2], alpha)
         glColor4f(*color)
 
-        # Anatomical Head / Neck surface
         head_pos = skel.joints["Head"].world_position
         neck_pos = skel.joints["Neck"].world_position
         draw_ellipsoid(head_pos + np.array([0, 0.07, 0]), 0.115, 0.145, 0.125)
         draw_cylinder(neck_pos, head_pos, radius=0.065)
 
-        # Upper Torso & Pelvis skin
         pelvis_pos = skel.joints["Pelvis"].world_position
         chest_pos = skel.joints["Chest"].world_position
         spine_pos = skel.joints["Spine"].world_position
@@ -227,6 +235,5 @@ class Renderer:
         draw_ellipsoid(spine_pos, 0.205, 0.165, 0.145)
         draw_ellipsoid(pelvis_pos, 0.215, 0.145, 0.155)
 
-        # Limb contours connecting skeleton joints
         for bone in skel.bones:
             draw_cylinder(bone.start_pos, bone.end_pos, radius=0.068)
